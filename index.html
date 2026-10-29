@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FoodieExpress - React Live Order Tracker</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+  <style>
+    body { background-color: #fff9f5; font-family: system-ui, -apple-system, sans-serif; }
+    .order-card { border-radius: 12px; border: 1px solid #f1ded5; background: #fff; transition: transform 0.2s, box-shadow 0.2s; }
+    .order-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
+    .step-pill { flex: 1; text-align: center; font-size: 0.85rem; padding: 8px 4px; border-radius: 8px; background: #f8f9fa; color: #6c757d; }
+    .step-pill.active { background: #ffebeb; color: #dc3545; font-weight: 700; border: 1px solid #f5c2c7; }
+    .step-pill.completed { background: #e8f5e9; color: #2e7d32; font-weight: 600; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// Unit V: Props + Props Validation
+function MenuCard({ item, onSelect }) {
+  return (
+    <div className="col-md-3 mb-4">
+      <div className="card text-center p-3 h-100 shadow-sm border-0" style={{borderRadius: '12px'}}>
+        <div style={{fontSize: '3.5rem'}}>{item.emoji}</div>
+        <h5 className="mt-2 mb-1">{item.name}</h5>
+        <span className="badge bg-light text-secondary mb-2">{item.category}</span>
+        <p className="text-muted small">{item.description}</p>
+        <b className="text-danger fs-5 mb-2">₹{item.price}</b>
+        <button className="btn btn-sm btn-outline-danger mt-auto" onClick={() => onSelect(item)}>Select</button>
+      </div>
+    </div>
+  );
+}
+
+MenuCard.propTypes = {
+  item: PropTypes.shape({
+    name: PropTypes.string.isRequired,
+    price: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    emoji: PropTypes.string,
+    category: PropTypes.string,
+    description: PropTypes.string
+  }).isRequired,
+  onSelect: PropTypes.func.isRequired
+};
+
+// Unit IV: Class component, constructor, life cycle methods
+class OrderTracker extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      orders: [],
+      loading: true,
+      error: null,
+      lastUpdated: new Date().toLocaleTimeString()
+    };
+  }
+
+  componentDidMount() {
+    this.load();
+    this.timer = setInterval(() => this.load(), 5000); // Poll live status every 5 seconds
+  }
+
+  componentWillUnmount() {
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  load() {
+    fetch('../api/orders.php')
+      .then(r => {
+        if (!r.ok) throw new Error('Could not fetch orders');
+        return r.json();
+      })
+      .then(d => this.setState({ orders: d, loading: false, error: null, lastUpdated: new Date().toLocaleTimeString() }))
+      .catch(e => this.setState({ error: e.message, loading: false }));
+  }
+
+  render() {
+    const { orders, loading, error, lastUpdated } = this.state;
+    const steps = [
+      { name: 'Placed', icon: '📝' },
+      { name: 'Preparing', icon: '👨‍🍳' },
+      { name: 'Out for Delivery', icon: '🛵' },
+      { name: 'Delivered', icon: '✅' }
+    ];
+
+    if (loading && (!orders || orders.length === 0)) {
+      return (
+        <div className="text-center p-5">
+          <div className="spinner-border text-danger" role="status"></div>
+          <p className="mt-3 text-muted">Checking live order status...</p>
+        </div>
+      );
+    }
+
+    if (error && (!orders || orders.length === 0)) {
+      return (
+        <div className="alert alert-warning text-center p-4">
+          <h5>⚠️ {error}</h5>
+          <p>Please login to your account to view your specific orders, or place a new order.</p>
+          <a href="../login.php" className="btn btn-danger btn-sm me-2">Login</a>
+          <a href="../index.php" className="btn btn-outline-danger btn-sm">Order Food</a>
+        </div>
+      );
+    }
+
+    if (!orders || orders.length === 0) {
+      return (
+        <div className="card text-center p-5 shadow-sm border-0" style={{borderRadius: '16px'}}>
+          <div style={{fontSize: '4rem'}}>🛵</div>
+          <h4 className="mt-3">No Orders Placed Yet</h4>
+          <p className="text-muted">You haven't placed any orders yet. Add items to your cart and place an order to track it live!</p>
+          <div className="mt-2">
+            <a href="../index.php" className="btn btn-danger me-2">Browse Menu</a>
+            <button className="btn btn-outline-secondary" onClick={() => this.load()}>Check Again</button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <span className="badge bg-success-subtle text-success border border-success px-3 py-2">
+            ● Live Tracking Active (Refreshes every 5s)
+          </span>
+          <small className="text-muted">
+            Last updated: {lastUpdated} 
+            <button className="btn btn-link btn-sm text-decoration-none text-danger p-0 ms-2" onClick={() => this.load()}>Refresh now</button>
+          </small>
+        </div>
+
+        {orders.map(o => {
+          const stepNames = steps.map(s => s.name);
+          const currentStepIdx = stepNames.indexOf(o.status);
+          const progressPercent = currentStepIdx >= 0 ? ((currentStepIdx + 1) / steps.length) * 100 : 25;
+
+          return (
+            <div key={o.id} className="order-card p-4 mb-4 shadow-sm">
+              <div className="d-flex flex-wrap justify-content-between align-items-center border-bottom pb-3 mb-3">
+                <div>
+                  <h5 className="mb-0 text-dark">
+                    Order <span className="text-danger">#{o.id}</span>
+                  </h5>
+                  <small className="text-muted">{o.created_at} &bull; {o.payment || 'COD'} &bull; {o.area || 'Delivery'}</small>
+                </div>
+                <div className="text-end">
+                  <span className="badge bg-danger fs-6 px-3 py-2">₹{o.total}</span>
+                </div>
+              </div>
+
+              {/* Items in order */}
+              {o.items && o.items.length > 0 && (
+                <div className="bg-light rounded p-3 mb-3">
+                  <div className="small fw-bold text-muted mb-2">ORDERED DISHES:</div>
+                  <div className="d-flex flex-wrap gap-2">
+                    {o.items.map((it, idx) => (
+                      <span key={idx} className="badge bg-white text-dark border p-2">
+                        {it.emoji} {it.name} <b className="text-danger">× {it.qty}</b> (₹{it.price})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Status Stepper */}
+              <div className="d-flex gap-2 mb-3">
+                {steps.map((st, sIdx) => {
+                  let cls = 'step-pill';
+                  if (sIdx < currentStepIdx) cls += ' completed';
+                  else if (sIdx === currentStepIdx) cls += ' active';
+                  return (
+                    <div key={st.name} className={cls}>
+                      <div>{st.icon}</div>
+                      <div>{st.name}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Progress Bar */}
+              <div className="progress" style={{height: '10px', borderRadius: '5px'}}>
+                <div
+                  className="progress-bar progress-bar-striped progress-bar-animated bg-danger"
+                  role="progressbar"
+                  style={{ width: `${progressPercent}%` }}
+                ></div>
+              </div>
+
+              <div className="d-flex justify-content-between align-items-center mt-2">
+                <small className="text-muted">
+                  Current Status: <b className="text-danger">{o.status}</b>
+                </small>
+                <a href="../orders.php" className="small text-danger text-decoration-none">View full receipt &rarr;</a>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+}
+
+// Unit V: State, Hooks, Routing
+function App() {
+  const [route, setRoute] = useState(window.location.hash || '#track');
+  const [menu, setMenu] = useState([]);
+  const [picked, setPicked] = useState(null);
+
+  useEffect(() => {
+    const handleHash = () => setRoute(window.location.hash || '#track');
+    window.addEventListener('hashchange', handleHash);
+    fetch('../api/menu.php')
+      .then(r => r.json())
+      .then(setMenu)
+      .catch(err => console.error(err));
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  return (
+    <div>
+      <nav className="navbar navbar-dark bg-danger px-3 shadow-sm">
+        <div className="container">
+          <a className="navbar-brand fw-bold" href="../index.php">🍴 FoodieExpress (React)</a>
+          <div className="d-flex gap-2">
+            <a
+              className={`btn btn-sm ${route === '#track' ? 'btn-light fw-bold shadow-sm' : 'btn-outline-light'}`}
+              href="#track"
+            >
+              📍 Track Orders Live
+            </a>
+            <a
+              className={`btn btn-sm ${route === '#menu' ? 'btn-light fw-bold shadow-sm' : 'btn-outline-light'}`}
+              href="#menu"
+            >
+              📋 Menu
+            </a>
+            <a className="btn btn-sm btn-outline-light" href="../index.php">
+              ← Main Site
+            </a>
+          </div>
+        </div>
+      </nav>
+
+      <div className="container my-4">
+        {route === '#track' ? (
+          <div>
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <h3 className="mb-0 fw-bold">🛵 Live Order Tracking</h3>
+                <p className="text-muted small mb-0">Track real-time preparation and delivery updates</p>
+              </div>
+              <a href="../index.php" className="btn btn-outline-danger btn-sm">+ Order More Food</a>
+            </div>
+            <OrderTracker />
+          </div>
+        ) : (
+          <div>
+            <h3 className="fw-bold mb-3">📋 Menu Items</h3>
+            {picked && (
+              <div className="alert alert-success d-flex justify-content-between align-items-center shadow-sm">
+                <span>Selected: <b>{picked.emoji} {picked.name} (₹{picked.price})</b></span>
+                <a href="../index.php" className="btn btn-sm btn-success">Go to Main Menu to Order &rarr;</a>
+              </div>
+            )}
+            <div className="row">
+              {menu.map(m => (
+                <MenuCard key={m.id} item={m} onSelect={setPicked} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
